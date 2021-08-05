@@ -1,4 +1,5 @@
 require("@nomiclabs/hardhat-waffle");
+require('dotenv').config();
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -8,7 +9,12 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
   for (const account of accounts) {
     console.log(account.address);
   }
+  
 });
+
+task("private-keys", "Print list of private keys", async (_, hre) => {
+  console.log("DEBIO_NETWORK_DEPLOYER_PRIVATE_KEY =>", process.env.DEBIO_NETWORK_DEPLOYER_PRIVATE_KEY);
+})
 
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
@@ -18,4 +24,10 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
  */
 module.exports = {
   solidity: "0.8.4",
+  networks: { 
+    debio: {
+      url: "https://testnet.theapps.dev/rpc",
+      accounts: [process.env.DEBIO_NETWORK_DEPLOYER_PRIVATE_KEY]
+    }
+  }
 };

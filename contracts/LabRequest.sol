@@ -15,7 +15,7 @@ contract LabRequest {
 
   IERC20 public _token;
 
-  constructor(address ERC20Address) public {
+  constructor(address ERC20Address) {
     _token = IERC20(ERC20Address);
   }
 

@@ -26,3 +26,7 @@ To make this request, a customer would have to stake a certain amount of DAI
     uint stakingAmount
   ) external { }
 ```
+
+## Deployed Contract Address
+Refer to ./deployed-addresses for the last deployed contract addresses.
+Currently deployed in private network for development.
