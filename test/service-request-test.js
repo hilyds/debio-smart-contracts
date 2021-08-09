@@ -1,10 +1,11 @@
 const { expect } = require('chai')
 require("@nomiclabs/hardhat-waffle");
 
-describe('LabRequests', function () {
+describe('ServiceRequests', function () {
   let contract;
   // Request Parameters
-  const substrateAddress = "5abcedefg1234567890";
+  const requesterSubstrateAddress = "5abcedefg1234567890";
+  const labSubstrateAddress = "5xxxxxxxxxxxxxxxxxx";
   const country = "Indonesia";
   const city = "Jakarta";
   const testCategory = "Whole Genome Sequencing";
@@ -37,10 +38,10 @@ describe('LabRequests', function () {
     await transferTx.wait();
 
     /**
-     * Deploy Lab Request Contract
+     * Deploy Service Request Contract
      * */
-    const LabRequestContract = await ethers.getContractFactory("LabRequest");
-    contract = await LabRequestContract.deploy(erc20.address);
+    const ServiceRequestContract = await ethers.getContractFactory("ServiceRequest");
+    contract = await ServiceRequestContract.deploy(erc20.address);
     await contract.deployed();
 
     /** 
@@ -53,7 +54,8 @@ describe('LabRequests', function () {
     await approveTx.wait();
 
     const requestAddedTx = await contractWithSigner.createRequest(
-      substrateAddress,
+      requesterSubstrateAddress,
+      labSubstrateAddress,
       country,
       city,
       testCategory,
@@ -64,27 +66,29 @@ describe('LabRequests', function () {
   });
 
   it("Should fail if sender does not have enough ERC20 token balance", async function () {
-    let _err;
+    let errMsg;
     try {
       const contractWithSigner = contract.connect(iDontHaveTokens)
       const tx = await contractWithSigner.createRequest(
-        substrateAddress,
+        requesterSubstrateAddress,
+        labSubstrateAddress,
         country,
         city,
         testCategory,
         stakingAmount
       )
     } catch (err) {
-      _err = err
+      errMsg = err.message
     }
-    expect(_err != null).to.equal(true);
+    expect(errMsg).to.equal("VM Exception while processing transaction: reverted with reason string 'ERC20: transfer amount exceeds balance'");
   })
 
   it("Should return requests by country", async function () {
     const requests = await contract.getRequestsByCountry(country);    
     const req = requests[0];
 
-    expect(req.substrateAddress).to.equal(substrateAddress);
+    expect(req.requesterSubstrateAddress).to.equal(requesterSubstrateAddress);
+    expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
     expect(req.country).to.equal(country);
     expect(req.city).to.equal(city);
     expect(req.testCategory).to.equal(testCategory);
@@ -95,15 +99,17 @@ describe('LabRequests', function () {
     const requests = await contract.getRequestsByCountryCity(country, city);    
     const req = requests[0];
 
-    expect(req.substrateAddress).to.equal(substrateAddress);
+    expect(req.requesterSubstrateAddress).to.equal(requesterSubstrateAddress);
+    expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
     expect(req.country).to.equal(country);
     expect(req.city).to.equal(city);
     expect(req.testCategory).to.equal(testCategory);
     expect(req.stakingAmount.toString()).to.equal(stakingAmount);
   })
 
-  it("Should emit LabRequestCreated event, when request is created", async function () {
-    const substrateAddress = "5abcedefg1234567890";
+  it("Should emit ServiceRequestCreated event, when request is created", async function () {
+    const requesterSubstrateAddress = "5abcedefg1234567890";
+    const labSubstrateAddress = "5xxxxxxxxxxxxxxxxxx";
     const country = "Indonesia";
     const city = "Jakarta";
     const testCategory = "Whole Genome Sequencing";
@@ -111,7 +117,8 @@ describe('LabRequests', function () {
 
     const contractWithSigner = contract.connect(iHaveTokens);
     const requestAddedTx = await contractWithSigner.createRequest(
-      substrateAddress,
+      requesterSubstrateAddress,
+      labSubstrateAddress,
       country,
       city,
       testCategory,
@@ -120,15 +127,20 @@ describe('LabRequests', function () {
     // wait until transaction is mined
     const receipt = await requestAddedTx.wait();
     // Get event from receipt
-    const events = receipt.events.filter((x) => x.event == "LabRequestCreated");
+    const events = receipt.events.filter((x) => x.event == "ServiceRequestCreated");
     expect(events.length > 0).to.equal(true);
     // Get the request data from the event
     const req = events[0].args[0]
-    expect(req.substrateAddress).to.equal(substrateAddress);
+
+    expect(req.requesterSubstrateAddress).to.equal(requesterSubstrateAddress);
+    expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
     expect(req.country).to.equal(country);
     expect(req.city).to.equal(city);
     expect(req.testCategory).to.equal(testCategory);
     expect(req.stakingAmount.toString()).to.equal(stakingAmount);
+
+    const requestCount = await contract.getRequestCount();
+    expect(requestCount).to.equal(2);
   })
 
   it("Should return all requests", async function () {
@@ -136,7 +148,8 @@ describe('LabRequests', function () {
     expect(requests.length).to.equal(2);
     
     for (let req of requests) {
-      expect(req.substrateAddress).to.equal(substrateAddress);
+      expect(req.requesterSubstrateAddress).to.equal(requesterSubstrateAddress);
+      expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
       expect(req.country).to.equal(country);
       expect(req.city).to.equal(city);
       expect(req.testCategory).to.equal(testCategory);
@@ -145,13 +158,48 @@ describe('LabRequests', function () {
   })
 
   it("Should return requests by substrateAddress", async function () {
-    const requests = await contract.getRequestsBySubstrateAddress(substrateAddress);
+    const requests = await contract.getRequestsByRequesterSubstrateAddress(requesterSubstrateAddress);
     for (let req of requests) {
-      expect(req.substrateAddress).to.equal(substrateAddress);
+      expect(req.requesterSubstrateAddress).to.equal(requesterSubstrateAddress);
+      expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
       expect(req.country).to.equal(country);
       expect(req.city).to.equal(city);
       expect(req.testCategory).to.equal(testCategory);
       expect(req.stakingAmount.toString()).to.equal(stakingAmount);
     }
   })
+
+  it("Should return request by request hash", async function () {
+    const requests = await contract.getAllRequests();
+    const req = requests[0]
+    const reqByHash = await contract.getRequestByHash(req.hash)
+
+    expect(req.requesterSubstrateAddress).to.equal(reqByHash.requesterSubstrateAddress);
+    expect(req.labSubstrateAddress).to.equal(reqByHash.labSubstrateAddress);
+    expect(req.country).to.equal(reqByHash.country);
+    expect(req.city).to.equal(reqByHash.city);
+    expect(req.testCategory).to.equal(reqByHash.testCategory);
+    expect(req.stakingAmount.toString()).to.equal(reqByHash.stakingAmount);
+  })
+
+
+  it("Lab can fulfill a request and claim token (Updates fulfilled flag to true)", async function () {
+    const requests = await contract.getAllRequests();
+    let req = requests[0];
+    expect(req.fulfilled).to.equal(false);
+
+    const contractWithSigner = contract.connect(iHaveTokens);
+    const fulfillTx = await contractWithSigner.fulfillRequest(req.hash);
+    await fulfillTx.wait();
+
+    req = await contract.getRequestByHash(req.hash);
+    expect(req.fulfilled).to.equal(true);
+  })
+
+  /*
+  it("Lab can not claim a request if: TODO: Define condition", async function () {
+    // TODO:
+  })
+  */
+
 })
