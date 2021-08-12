@@ -9,8 +9,8 @@ async function main() {
   console.log('Deploying to network', networkName, networkUrl);
 
   const DAITokenAddress = process.env[`${networkName.toUpperCase()}_NETWORK_DAI_TOKEN_ADDRESS`];
-  const LabRequestContract = await hre.ethers.getContractFactory("LabRequest");
-  const contract = await LabRequestContract.deploy(DAITokenAddress);
+  const ServiceRequestContract = await hre.ethers.getContractFactory("ServiceRequest");
+  const contract = await ServiceRequestContract.deploy(DAITokenAddress);
   await contract.deployed();
 
   console.log('Contract deployed!');

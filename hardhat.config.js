@@ -13,7 +13,7 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 });
 
 task("private-keys", "Print list of private keys", async (_, hre) => {
-  console.log("DEBIO_NETWORK_DEPLOYER_PRIVATE_KEY =>", process.env.DEBIO_NETWORK_DEPLOYER_PRIVATE_KEY);
+  console.log("DEPLOYER_PRIVATE_KEY =>", process.env.DEPLOYER_PRIVATE_KEY);
 })
 
 // You need to export an object to set up your config
@@ -27,7 +27,12 @@ module.exports = {
   networks: { 
     debio: {
       url: "https://testnet.theapps.dev/rpc",
-      accounts: [process.env.DEBIO_NETWORK_DEPLOYER_PRIVATE_KEY]
+      accounts: [process.env.DEPLOYER_PRIVATE_KEY]
+    },
+    rinkeby: {
+      url: process.env.RINKEBY_RPC_URL,
+      chainId: 4,
+      accounts: [process.env.DEPLOYER_PRIVATE_KEY]
     }
   }
 };
