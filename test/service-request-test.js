@@ -8,7 +8,7 @@ describe('ServiceRequests', function () {
   const labSubstrateAddress = "5xxxxxxxxxxxxxxxxxx";
   const country = "Indonesia";
   const city = "Jakarta";
-  const testCategory = "Whole Genome Sequencing";
+  const serviceCategory = "Whole Genome Sequencing";
   const stakingAmount = "20000000000000000000";
 
   let iHaveTokens;
@@ -58,7 +58,7 @@ describe('ServiceRequests', function () {
       labSubstrateAddress,
       country,
       city,
-      testCategory,
+      serviceCategory,
       stakingAmount
     );
     // wait until transaction is mined
@@ -74,7 +74,7 @@ describe('ServiceRequests', function () {
         labSubstrateAddress,
         country,
         city,
-        testCategory,
+        serviceCategory,
         stakingAmount
       )
     } catch (err) {
@@ -91,7 +91,7 @@ describe('ServiceRequests', function () {
     expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
     expect(req.country).to.equal(country);
     expect(req.city).to.equal(city);
-    expect(req.testCategory).to.equal(testCategory);
+    expect(req.serviceCategory).to.equal(serviceCategory);
     expect(req.stakingAmount.toString()).to.equal(stakingAmount);
   })
 
@@ -103,7 +103,7 @@ describe('ServiceRequests', function () {
     expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
     expect(req.country).to.equal(country);
     expect(req.city).to.equal(city);
-    expect(req.testCategory).to.equal(testCategory);
+    expect(req.serviceCategory).to.equal(serviceCategory);
     expect(req.stakingAmount.toString()).to.equal(stakingAmount);
   })
 
@@ -112,7 +112,7 @@ describe('ServiceRequests', function () {
     const labSubstrateAddress = "5xxxxxxxxxxxxxxxxxx";
     const country = "Indonesia";
     const city = "Jakarta";
-    const testCategory = "Whole Genome Sequencing";
+    const serviceCategory = "Whole Genome Sequencing";
     const stakingAmount = "20000000000000000000";
 
     const contractWithSigner = contract.connect(iHaveTokens);
@@ -121,7 +121,7 @@ describe('ServiceRequests', function () {
       labSubstrateAddress,
       country,
       city,
-      testCategory,
+      serviceCategory,
       stakingAmount
     );
     // wait until transaction is mined
@@ -136,7 +136,7 @@ describe('ServiceRequests', function () {
     expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
     expect(req.country).to.equal(country);
     expect(req.city).to.equal(city);
-    expect(req.testCategory).to.equal(testCategory);
+    expect(req.serviceCategory).to.equal(serviceCategory);
     expect(req.stakingAmount.toString()).to.equal(stakingAmount);
 
     const requestCount = await contract.getRequestCount();
@@ -152,7 +152,7 @@ describe('ServiceRequests', function () {
       expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
       expect(req.country).to.equal(country);
       expect(req.city).to.equal(city);
-      expect(req.testCategory).to.equal(testCategory);
+      expect(req.serviceCategory).to.equal(serviceCategory);
       expect(req.stakingAmount.toString()).to.equal(stakingAmount);
     }
   })
@@ -164,7 +164,7 @@ describe('ServiceRequests', function () {
       expect(req.labSubstrateAddress).to.equal(labSubstrateAddress);
       expect(req.country).to.equal(country);
       expect(req.city).to.equal(city);
-      expect(req.testCategory).to.equal(testCategory);
+      expect(req.serviceCategory).to.equal(serviceCategory);
       expect(req.stakingAmount.toString()).to.equal(stakingAmount);
     }
   })
@@ -178,22 +178,25 @@ describe('ServiceRequests', function () {
     expect(req.labSubstrateAddress).to.equal(reqByHash.labSubstrateAddress);
     expect(req.country).to.equal(reqByHash.country);
     expect(req.city).to.equal(reqByHash.city);
-    expect(req.testCategory).to.equal(reqByHash.testCategory);
+    expect(req.serviceCategory).to.equal(reqByHash.serviceCategory);
     expect(req.stakingAmount.toString()).to.equal(reqByHash.stakingAmount);
   })
 
 
-  it("Lab can fulfill a request and claim token (Updates fulfilled flag to true)", async function () {
+  it("Lab can fulfill a request (Updates request status to fulfilled)", async function () {
+    /**
+     * enum RequestStatus { OPEN, IN_PROGRESS, FULFILLED }
+     */
     const requests = await contract.getAllRequests();
     let req = requests[0];
-    expect(req.fulfilled).to.equal(false);
+    expect(req.status).to.equal(0);
 
     const contractWithSigner = contract.connect(iHaveTokens);
     const fulfillTx = await contractWithSigner.fulfillRequest(req.hash);
     await fulfillTx.wait();
 
     req = await contract.getRequestByHash(req.hash);
-    expect(req.fulfilled).to.equal(true);
+    expect(req.status).to.equal(2);
   })
 
   /*

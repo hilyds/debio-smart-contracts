@@ -5,14 +5,16 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ServiceRequest {
+  enum RequestStatus { OPEN, IN_PROGRESS, FULFILLED }
+
   struct Request {
     string requesterSubstrateAddress;
     string labSubstrateAddress;
     string country;
     string city;
-    string testCategory;
+    string serviceCategory;
     uint stakingAmount;
-    bool fulfilled;
+    RequestStatus status;
     bytes32 hash;
   }
 
@@ -43,7 +45,7 @@ contract ServiceRequest {
     string memory labSubstrateAddress,
     string memory country,
     string memory city,
-    string memory testCategory,
+    string memory serviceCategory,
     uint stakingAmount,
     uint index
   ) internal pure returns (bytes32 hash){
@@ -52,7 +54,7 @@ contract ServiceRequest {
       labSubstrateAddress,
       country,
       city,
-      testCategory,
+      serviceCategory,
       stakingAmount,
       index
     ));
@@ -63,7 +65,7 @@ contract ServiceRequest {
     string memory labSubstrateAddress,
     string memory country,
     string memory city,
-    string memory testCategory,
+    string memory serviceCategory,
     uint stakingAmount
   ) external {
 
@@ -76,7 +78,7 @@ contract ServiceRequest {
       labSubstrateAddress,
       country,
       city,
-      testCategory,
+      serviceCategory,
       stakingAmount,
       requestCount
     );
@@ -86,9 +88,9 @@ contract ServiceRequest {
       labSubstrateAddress,
       country,
       city,
-      testCategory,
+      serviceCategory,
       stakingAmount,
-      false, // fulfilled
+      RequestStatus.OPEN,
       requestHash
     );
 
@@ -135,6 +137,6 @@ contract ServiceRequest {
   }
 
   function fulfillRequest(bytes32 hash) external {
-    requestByHash[hash].fulfilled = true;
+    requestByHash[hash].status = RequestStatus.FULFILLED;
   }
 }
