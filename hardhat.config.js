@@ -33,6 +33,11 @@ module.exports = {
       url: process.env.RINKEBY_RPC_URL,
       chainId: 4,
       accounts: [process.env.DEPLOYER_PRIVATE_KEY]
+    },
+    ropsten: {
+      url: process.env.ROPSTEN_RPC_URL,
+      chainId: 3,
+      accounts: [process.env.ROPSTEN_DEPLOYER_PRIVATE_KEY]
     }
   }
 };
