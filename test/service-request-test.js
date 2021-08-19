@@ -18,9 +18,8 @@ describe('ServiceRequests', function () {
     /**
      * Deploy ERC20 token
      * */
-    const ERC20Contract = await ethers.getContractFactory("ERC20Mock");
-    const initialSupply = "10000000000000000000000"
-    const erc20 = await ERC20Contract.deploy(initialSupply);
+    const ERC20Contract = await ethers.getContractFactory("DebioToken");
+    const erc20 = await ERC20Contract.deploy();
     await erc20.deployed()
 
     /**
