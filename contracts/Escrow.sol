@@ -74,9 +74,9 @@ contract Escrow {
 
   function refundOrder(bytes32 hash) external {
     // Transfer QC price to lab
-    require(_token.transferFrom(address(this), orderByHash[hash].sellerAddress, orderByHash[hash].qcPrice), "QC Payment to lab failed");
+    require(_token.transfer(orderByHash[hash].sellerAddress, orderByHash[hash].qcPrice), "QC Payment to lab failed");
     // Refund customer
-    require(_token.transferFrom(address(this), orderByHash[hash].customerAddress, orderByHash[hash].testingPrice), "Refund to customer failed");
+    require(_token.transfer(orderByHash[hash].customerAddress, orderByHash[hash].testingPrice), "Refund to customer failed");
     
     // If all is done, status is refunded
     orderByHash[hash].status = OrderStatus.REFUNDED;
@@ -87,7 +87,7 @@ contract Escrow {
   function fulfillOrder(bytes32 hash) external {
     // Transfer testing and QC price to lab
     uint totalPrice = orderByHash[hash].testingPrice + orderByHash[hash].qcPrice;
-    require(_token.transferFrom(address(this), orderByHash[hash].sellerAddress, totalPrice), "Payment to lab failed");
+    require(_token.transfer(orderByHash[hash].sellerAddress, totalPrice), "Payment to lab failed");
     
     // If all is done, status is fulfilled
     orderByHash[hash].status = OrderStatus.FULFILLED;

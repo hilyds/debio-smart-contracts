@@ -231,7 +231,7 @@ describe('Escrow', function () {
     await fulfillTx.wait();
 
     order = await contract.getOrderByHash(order.hash);
-    expect(order.status).to.equal(2);
+    expect(order.status).to.equal(1);
   })
 
   it("Lab can refund a order (Updates order status to refunded)", async function () {
