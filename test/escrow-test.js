@@ -1,5 +1,6 @@
 const { expect } = require('chai')
 require("@nomiclabs/hardhat-waffle");
+require('dotenv').config();
 
 describe('Escrow', function () {
   let contract;
@@ -12,8 +13,9 @@ describe('Escrow', function () {
   const testingPrice = 10
   const qcPrice = 3
 
-  let customerAddress;
-  let sellerAddress;
+  let customerAccount;
+  let sellerAccount;
+  let escrowAccount;
   let iDontHaveTokens;
 
   before(async function () {
@@ -28,46 +30,64 @@ describe('Escrow', function () {
      * Get test accounts
      * */
     const accounts = await hre.ethers.getSigners();
-    // accounts[0] is the deployer
-    customerAddress = accounts[1];
-    sellerAddress = accounts[2];
+    deployer = accounts[0]
+    customerAccount = accounts[1];
+    sellerAccount = accounts[2];
     iDontHaveTokens = accounts[3];
+    escrowAccount = new ethers.Wallet(process.env.ESCROW_WALLET_PRIVATE_KEY, hre.ethers.provider);
 
     /**
-     * Transfer some ERC20s to customerAddress
+     * Transfer some ERC20s to customerAccount
      * */
-    const transferTx = await erc20.transfer(customerAddress.address, "90000000000000000000");
+    const transferTx = await erc20.transfer(customerAccount.address, "90000000000000000000");
     await transferTx.wait();
 
     /**
-     * Transfer some ERC20s to sellerAddress
+     * Transfer some ERC20s to sellerAccount
      * */
-    const transferTx2 = await erc20.transfer(sellerAddress.address, "90000000000000000000");
+    const transferTx2 = await erc20.transfer(sellerAccount.address, "90000000000000000000");
     await transferTx2.wait();
 
     /**
-     * Deploy Escrow Contract
+     * Transfer some ETH to escrowAccount
      * */
-    const EscrowtContract = await ethers.getContractFactory("Escrow");
-    contract = await EscrowtContract.deploy(erc20.address);
+    const transferTx3 = await deployer.sendTransaction({
+      to: escrowAccount.address,
+      value: ethers.utils.parseEther("1.0")
+    });
+    await transferTx3.wait();
+    /**
+     * Transfer some ERC20s to escrowAccount
+     * */
+    const transferTx4 = await erc20.transfer(escrowAccount.address, "90000000000000000000");
+    await transferTx4.wait();
+
+    /**
+     * Deploy Escrow Contract
+     *
+     * - Add ERC20 address to constructor
+     * - Add escrow admin wallet address to constructor
+     * */
+    const EscrowContract = await ethers.getContractFactory("Escrow");
+    contract = await EscrowContract.deploy(erc20.address, process.env.ESCROW_WALLET_ADDRESS);
     await contract.deployed();
 
     /** 
      * Seed request data
      * */
-    const erc20WithSigner = erc20.connect(customerAddress);
-    const contractWithSigner = contract.connect(customerAddress);
+    const erc20WithSigner = erc20.connect(customerAccount);
+    const contractWithSigner = contract.connect(customerAccount);
 
     const approveTx = await erc20WithSigner.approve(contract.address, "90000000000000000000");
     await approveTx.wait();
 
-    const orderPaidTx = await contractWithSigner.orderPaid(
+    const orderPaidTx = await contractWithSigner.payOrder(
         orderId,
         serviceId,
         customerSubstrateAddress,
         sellerSubstrateAddress,
-        customerAddress.address,
-        sellerAddress.address,
+        customerAccount.address,
+        sellerAccount.address,
         dnaSampleTrackingId,
         testingPrice,
         qcPrice
@@ -80,13 +100,13 @@ describe('Escrow', function () {
     let errMsg;
     try {
       const contractWithSigner = contract.connect(iDontHaveTokens)
-      const tx = await contractWithSigner.orderPaid(
+      const tx = await contractWithSigner.payOrder(
         orderId,
         serviceId,
         customerSubstrateAddress,
         sellerSubstrateAddress,
-        customerAddress.address,
-        sellerAddress.address,
+        customerAccount.address,
+        sellerAccount.address,
         dnaSampleTrackingId,
         testingPrice,
         qcPrice
@@ -104,8 +124,8 @@ describe('Escrow', function () {
     expect(req.serviceId).to.equal(serviceId);
     expect(req.customerSubstrateAddress).to.equal(customerSubstrateAddress);
     expect(req.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-    expect(req.customerAddress).to.equal(customerAddress.address);
-    expect(req.sellerAddress).to.equal(sellerAddress.address);
+    expect(req.customerAddress).to.equal(customerAccount.address);
+    expect(req.sellerAddress).to.equal(sellerAccount.address);
     expect(req.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
     expect(req.testingPrice.toString()).to.equal(testingPrice.toString());
     expect(req.qcPrice.toString()).to.equal(qcPrice.toString());
@@ -119,8 +139,8 @@ describe('Escrow', function () {
         expect(req.serviceId).to.equal(serviceId);
         expect(req.customerSubstrateAddress).to.equal(customerSubstrateAddress);
         expect(req.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-        expect(req.customerAddress).to.equal(customerAddress.address);
-        expect(req.sellerAddress).to.equal(sellerAddress.address);
+        expect(req.customerAddress).to.equal(customerAccount.address);
+        expect(req.sellerAddress).to.equal(sellerAccount.address);
         expect(req.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
         expect(req.testingPrice.toString()).to.equal(testingPrice.toString());
         expect(req.qcPrice.toString()).to.equal(qcPrice.toString());
@@ -134,8 +154,8 @@ describe('Escrow', function () {
         expect(req.serviceId).to.equal(serviceId);
         expect(req.customerSubstrateAddress).to.equal(customerSubstrateAddress);
         expect(req.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-        expect(req.customerAddress).to.equal(customerAddress.address);
-        expect(req.sellerAddress).to.equal(sellerAddress.address);
+        expect(req.customerAddress).to.equal(customerAccount.address);
+        expect(req.sellerAddress).to.equal(sellerAccount.address);
         expect(req.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
         expect(req.testingPrice.toString()).to.equal(testingPrice.toString());
         expect(req.qcPrice.toString()).to.equal(qcPrice.toString());
@@ -152,14 +172,14 @@ describe('Escrow', function () {
     const testingPrice = 10
     const qcPrice = 3
 
-    const contractWithSigner = contract.connect(customerAddress);
-    const orderAddedTx = await contractWithSigner.orderPaid(
+    const contractWithSigner = contract.connect(customerAccount);
+    const orderAddedTx = await contractWithSigner.payOrder(
         orderId,
         serviceId,
         customerSubstrateAddress,
         sellerSubstrateAddress,
-        customerAddress.address,
-        sellerAddress.address,
+        customerAccount.address,
+        sellerAccount.address,
         dnaSampleTrackingId,
         testingPrice,
         qcPrice
@@ -176,8 +196,8 @@ describe('Escrow', function () {
     expect(req.serviceId).to.equal(serviceId);
     expect(req.customerSubstrateAddress).to.equal(customerSubstrateAddress);
     expect(req.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-    expect(req.customerAddress).to.equal(customerAddress.address);
-    expect(req.sellerAddress).to.equal(sellerAddress.address);
+    expect(req.customerAddress).to.equal(customerAccount.address);
+    expect(req.sellerAddress).to.equal(sellerAccount.address);
     expect(req.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
     expect(req.testingPrice.toString()).to.equal(testingPrice.toString());
     expect(req.qcPrice.toString()).to.equal(qcPrice.toString());
@@ -195,8 +215,8 @@ describe('Escrow', function () {
     expect(order.serviceId).to.equal(serviceId);
     expect(order.customerSubstrateAddress).to.equal(customerSubstrateAddress);
     expect(order.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-    expect(order.customerAddress).to.equal(customerAddress.address);
-    expect(order.sellerAddress).to.equal(sellerAddress.address);
+    expect(order.customerAddress).to.equal(customerAccount.address);
+    expect(order.sellerAddress).to.equal(sellerAccount.address);
     expect(order.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
     expect(order.testingPrice.toString()).to.equal(testingPrice.toString());
     expect(order.qcPrice.toString()).to.equal(qcPrice.toString());
@@ -218,7 +238,7 @@ describe('Escrow', function () {
     expect(order.qcPrice.toString()).to.equal(orderByHash.qcPrice.toString());
   })
 
-  it("Lab can fulfill a order (Updates order status to fulfilled)", async function () {
+  it("Only Escrow account can fulfill a order (Updates order status to fulfilled)", async function () {
     /**
      * enum RequestStatus { PAID, FULFILLED, REFUNDED }
      */
@@ -226,15 +246,31 @@ describe('Escrow', function () {
     let order = orders[0];
     expect(order.status).to.equal(0);
 
-    const contractWithSigner = contract.connect(sellerAddress);
+
+    // Should not be able to fulfillOrder with sellerAccount
+    let errMsg;
+    try {
+      const contractWithSigner = contract.connect(sellerAccount);
+      const fulfillTx = await contractWithSigner.fulfillOrder(order.hash);
+      await fulfillTx.wait();
+    } catch (err) {
+      errMsg = err.message
+    }
+    expect(errMsg).to.equal("VM Exception while processing transaction: reverted with reason string 'Only Escrow Admin allowed to do order fulfillment'");
+
+    // Should be able to fulfillOrder with escrowAccount
+    const contractWithSigner = contract.connect(escrowAccount);
     const fulfillTx = await contractWithSigner.fulfillOrder(order.hash);
     await fulfillTx.wait();
 
     order = await contract.getOrderByHash(order.hash);
     expect(order.status).to.equal(1);
+
+    // TODO:
+    // Test if qc price and test price is transferred to lab
   })
 
-  it("Lab can refund a order (Updates order status to refunded)", async function () {
+  it("Only Escrow account can refund a order (Updates order status to refunded)", async function () {
     /**
      * enum RequestStatus { PAID, FULFILLED, REFUNDED }
      */
@@ -242,11 +278,27 @@ describe('Escrow', function () {
     let order = orders[0];
     expect(order.status).to.equal(0);
 
-    const contractWithSigner = contract.connect(sellerAddress);
+    // Should not be able to refund using sellerAccount
+    let errMsg;
+    try {
+      const contractWithSigner = contract.connect(sellerAccount);
+      const fulfillTx = await contractWithSigner.refundOrder(order.hash);
+      await fulfillTx.wait();
+    } catch (err) {
+      errMsg = err.message
+    }
+    expect(errMsg).to.equal("VM Exception while processing transaction: reverted with reason string 'Only Escrow Admin allowed to do refund'");
+
+    // Should be able to refundOrder with escrowAccount
+    const contractWithSigner = contract.connect(escrowAccount);
     const fulfillTx = await contractWithSigner.refundOrder(order.hash);
     await fulfillTx.wait();
 
     order = await contract.getOrderByHash(order.hash);
     expect(order.status).to.equal(2);
+
+    // TODO:
+    // Test if qc price is transferred to lab
+    // Test if testing price is refunded to customer
   })
 })

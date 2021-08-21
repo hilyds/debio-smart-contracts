@@ -27,9 +27,11 @@ contract Escrow {
   }
 
   IERC20 public _token;
+  address public _escrowAdmin;
 
-  constructor(address ERC20Address) {
+  constructor(address ERC20Address, address escrowAdmin) {
     _token = IERC20(ERC20Address);
+    _escrowAdmin = escrowAdmin;
   }
 
   // total orders count
@@ -73,6 +75,11 @@ contract Escrow {
   }
 
   function refundOrder(bytes32 hash) external {
+    // TODO:
+    // QC amount transferred to seller should be reduced by gas price
+    // Testing price amount transferred to buyer should be reduced by gas price
+
+    require(msg.sender == _escrowAdmin, "Only Escrow Admin allowed to do refund");
     // Transfer QC price to lab
     require(_token.transfer(orderByHash[hash].sellerAddress, orderByHash[hash].qcPrice), "QC Payment to lab failed");
     // Refund customer
@@ -85,6 +92,10 @@ contract Escrow {
   }
 
   function fulfillOrder(bytes32 hash) external {
+    // TODO:
+    // Total price amount transferred to seller should be reduced by gas price
+
+    require(msg.sender == _escrowAdmin, "Only Escrow Admin allowed to do order fulfillment");
     // Transfer testing and QC price to lab
     uint totalPrice = orderByHash[hash].testingPrice + orderByHash[hash].qcPrice;
     require(_token.transfer(orderByHash[hash].sellerAddress, totalPrice), "Payment to lab failed");
@@ -95,7 +106,7 @@ contract Escrow {
     emit OrderFulfilled(orderByHash[hash]);
   }
 
-  function orderPaid(
+  function payOrder(
     string memory orderId,
     string memory serviceId,
     string memory customerSubstrateAddress,

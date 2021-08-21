@@ -1,3 +1,14 @@
+# Escrow
+- Customer pays to escrow, inserting order detail data
+- When Lab fulfills order at substrate blockchain, backend receives order fulfilled event
+  - On order fulfilled, backend triggers Escrow.fulfillOrder:
+    - Transfer QC paymen to *Lab*
+    - Transfer Testing payment to *Lab* 
+- When Lab reject dna sample, backend receives dnaSample rejected event:
+  - On dnaSample rejected backend triggers Escrow.refundOrder:
+    - Transfer QC payment to *Lab*
+    - Transfer Testing payment to *Customer*
+
 # Request Test Staking
 Customer sends a request for a test to a lab.
 If there is no lab in their country,city then the request is also valid. The request will be used as a gauge of interest for the particular type of test in that city.
@@ -49,3 +60,4 @@ To make this request, a customer would have to stake a certain amount of DAI
 ## Deployed Contract Address
 Refer to ./deployed-addresses for the last deployed contract addresses.
 Currently deployed in private network for development.
+
