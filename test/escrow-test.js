@@ -4,6 +4,7 @@ require('dotenv').config();
 
 describe('Escrow', function () {
   let contract;
+  let erc20;
   // Request Parameters
 
   const orderId = "0xed19fb816f3d4a3d4f46e0445bd68a666647bc5fd77c60c937b170a398c49e51";
@@ -20,12 +21,13 @@ describe('Escrow', function () {
   let escrowAccount;
   let iDontHaveTokens;
 
+
   before(async function () {
     /**
      * Deploy ERC20 token
      * */
     const ERC20Contract = await ethers.getContractFactory("DebioToken");
-    const erc20 = await ERC20Contract.deploy();
+    erc20 = await ERC20Contract.deploy();
     await erc20.deployed()
 
     /**
@@ -134,45 +136,20 @@ describe('Escrow', function () {
   })
 
   it("Should return orders by customer substrate address", async function () {
-    const orders = await contract.getOrdersByCustomerSubstrateAddress(customerSubstrateAddress);    
-    
-    for (let req of orders) {
-        expect(req.orderId).to.equal(orderId);
-        expect(req.serviceId).to.equal(serviceId);
-        expect(req.customerSubstrateAddress).to.equal(customerSubstrateAddress);
-        expect(req.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-        expect(req.customerAddress).to.equal(customerAccount.address);
-        expect(req.sellerAddress).to.equal(sellerAccount.address);
-        expect(req.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
-        expect(req.testingPrice.toString()).to.equal(testingPrice.toString());
-        expect(req.qcPrice.toString()).to.equal(qcPrice.toString());
-    }
+    const orderIds = await contract.getOrdersByCustomerSubstrateAddress(customerSubstrateAddress);    
+    expect(orderIds[0]).to.equal(orderId)
   })
 
   it("Should return orders by seller substrate address", async function () {
-    const orders = await contract.getOrdersBySellerSubstrateAddress(sellerSubstrateAddress);    
-    for (let req of orders) {
-        expect(req.orderId).to.equal(orderId);
-        expect(req.serviceId).to.equal(serviceId);
-        expect(req.customerSubstrateAddress).to.equal(customerSubstrateAddress);
-        expect(req.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-        expect(req.customerAddress).to.equal(customerAccount.address);
-        expect(req.sellerAddress).to.equal(sellerAccount.address);
-        expect(req.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
-        expect(req.testingPrice.toString()).to.equal(testingPrice.toString());
-        expect(req.qcPrice.toString()).to.equal(qcPrice.toString());
-    }
+    const orderIds = await contract.getOrdersBySellerSubstrateAddress(sellerSubstrateAddress);    
+    expect(orderIds[0]).to.equal(orderId)
   })
 
   it("Should emit OrderPaid event, when order is paid", async function () {
     // Request Parameters
-    const orderId = "700fJuhXgfwi9WjBovRy";
-    const serviceId = "Lg9Z3Ncbn5VNnxuJEVxX";
-    const customerSubstrateAddress = "4KTmcB6iDV9HElHq2s1Q";
-    const sellerSubstrateAddress = "3CQguUxa2pOodID3Ni62";
-    const dnaSampleTrackingId = "xLNpoyWsY63Z8SYQeBHf";
-    const testingPrice = 10
-    const qcPrice = 3
+    // Different orderId, the rest of parameters are the same
+    // TODO: Add validation for orderId to prevent duplicate orderIds
+    const orderId = "0xd698d9107cd8d68b8fb7d2a81159b95bcb5ed0a337f661ede21f335d60fef63e";
 
     const contractWithSigner = contract.connect(customerAccount);
     const orderAddedTx = await contractWithSigner.payOrder(
@@ -211,41 +188,19 @@ describe('Escrow', function () {
   it("Should return all orders", async function () {
     const orders = await contract.getAllOrders();
     expect(orders.length).to.equal(2);
-    const order = orders[0]
-    
-    expect(order.orderId).to.equal(orderId);
-    expect(order.serviceId).to.equal(serviceId);
-    expect(order.customerSubstrateAddress).to.equal(customerSubstrateAddress);
-    expect(order.sellerSubstrateAddress).to.equal(sellerSubstrateAddress);
-    expect(order.customerAddress).to.equal(customerAccount.address);
-    expect(order.sellerAddress).to.equal(sellerAccount.address);
-    expect(order.dnaSampleTrackingId).to.equal(dnaSampleTrackingId);
-    expect(order.testingPrice.toString()).to.equal(testingPrice.toString());
-    expect(order.qcPrice.toString()).to.equal(qcPrice.toString());
-  })
 
-  it("Should return order by order hash", async function () {
-    const orders = await contract.getAllOrders();
-    const order = orders[0]
-    const orderByHash = await contract.getOrderByHash(order.hash)
-
-    expect(order.orderId).to.equal(orderByHash.orderId);
-    expect(order.serviceId).to.equal(orderByHash.serviceId);
-    expect(order.customerSubstrateAddress).to.equal(orderByHash.customerSubstrateAddress);
-    expect(order.sellerSubstrateAddress).to.equal(orderByHash.sellerSubstrateAddress);
-    expect(order.customerAddress).to.equal(orderByHash.customerAddress);
-    expect(order.sellerAddress).to.equal(orderByHash.sellerAddress);
-    expect(order.dnaSampleTrackingId).to.equal(orderByHash.dnaSampleTrackingId);
-    expect(order.testingPrice.toString()).to.equal(orderByHash.testingPrice.toString());
-    expect(order.qcPrice.toString()).to.equal(orderByHash.qcPrice.toString());
+    const orderId = orders[0]
+    expect(orderId).to.equal(orderId)
   })
 
   it("Only Escrow account can fulfill a order (Updates order status to fulfilled)", async function () {
     /**
      * enum RequestStatus { PAID, FULFILLED, REFUNDED }
      */
-    const orders = await contract.getAllOrders();
-    let order = orders[0];
+    const orderIds = await contract.getAllOrders();
+    const orderId = orderIds[0];
+
+    let order = await contract.getOrderByOrderId(orderId)
     expect(order.status).to.equal(0);
 
 
@@ -253,54 +208,67 @@ describe('Escrow', function () {
     let errMsg;
     try {
       const contractWithSigner = contract.connect(sellerAccount);
-      const fulfillTx = await contractWithSigner.fulfillOrder(order.hash);
+      const fulfillTx = await contractWithSigner.fulfillOrder(order.orderId);
       await fulfillTx.wait();
     } catch (err) {
       errMsg = err.message
     }
     expect(errMsg).to.equal("VM Exception while processing transaction: reverted with reason string 'Only Escrow Admin allowed to do order fulfillment'");
 
+    const sellerBalanceBefore = await erc20.balanceOf(sellerAccount.address)
+
     // Should be able to fulfillOrder with escrowAccount
     const contractWithSigner = contract.connect(escrowAccount);
-    const fulfillTx = await contractWithSigner.fulfillOrder(order.hash);
+    const fulfillTx = await contractWithSigner.fulfillOrder(order.orderId);
     await fulfillTx.wait();
 
-    order = await contract.getOrderByHash(order.hash);
+    order = await contract.getOrderByOrderId(order.orderId);
     expect(order.status).to.equal(1);
 
-    // TODO:
     // Test if qc price and test price is transferred to lab
+    const sellerBalanceAfter = await erc20.balanceOf(sellerAccount.address)
+    expect(sellerBalanceAfter.toString())
+      .to
+      .equal(sellerBalanceBefore.add(testingPrice + qcPrice).toString())
   })
 
   it("Only Escrow account can refund a order (Updates order status to refunded)", async function () {
     /**
      * enum RequestStatus { PAID, FULFILLED, REFUNDED }
      */
-    const orders = await contract.getAllOrders();
-    let order = orders[0];
+    const orderIds = await contract.getAllOrders();
+    const orderId = orderIds[1];
+
+    let order = await contract.getOrderByOrderId(orderId)
     expect(order.status).to.equal(0);
 
     // Should not be able to refund using sellerAccount
     let errMsg;
     try {
       const contractWithSigner = contract.connect(sellerAccount);
-      const fulfillTx = await contractWithSigner.refundOrder(order.hash);
+      const fulfillTx = await contractWithSigner.refundOrder(order.orderId);
       await fulfillTx.wait();
     } catch (err) {
       errMsg = err.message
     }
     expect(errMsg).to.equal("VM Exception while processing transaction: reverted with reason string 'Only Escrow Admin allowed to do refund'");
 
+    const customerBalanceBefore = await erc20.balanceOf(customerAccount.address)
+    const sellerBalanceBefore = await erc20.balanceOf(sellerAccount.address)
+
     // Should be able to refundOrder with escrowAccount
     const contractWithSigner = contract.connect(escrowAccount);
-    const fulfillTx = await contractWithSigner.refundOrder(order.hash);
+    const fulfillTx = await contractWithSigner.refundOrder(order.orderId);
     await fulfillTx.wait();
 
-    order = await contract.getOrderByHash(order.hash);
+    order = await contract.getOrderByOrderId(order.orderId);
     expect(order.status).to.equal(2);
 
-    // TODO:
-    // Test if qc price is transferred to lab
     // Test if testing price is refunded to customer
+    const customerBalanceAfter = await erc20.balanceOf(customerAccount.address)
+    expect(customerBalanceAfter.toString()).to.equal(customerBalanceBefore.add(testingPrice).toString())
+    // Test if qc price is transferred to lab
+    const sellerBalanceAfter = await erc20.balanceOf(sellerAccount.address)
+    expect(sellerBalanceAfter.toString()).to.equal(sellerBalanceBefore.add(qcPrice).toString())
   })
 })
