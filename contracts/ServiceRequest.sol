@@ -5,17 +5,18 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ServiceRequest {
-  enum RequestStatus { OPEN, IN_PROGRESS, FULFILLED }
+  enum RequestStatus { OPEN, CLAIMED }
 
   struct Request {
-    string requesterSubstrateAddress;
-    string labSubstrateAddress;
+    address requesterAddress;
+    address labAddress;
     string country;
     string city;
     string serviceCategory;
     uint stakingAmount;
     RequestStatus status;
     bytes32 hash;
+    bool exists;
   }
 
   IERC20 public _token;
@@ -24,25 +25,38 @@ contract ServiceRequest {
     _token = IERC20(ERC20Address);
   }
 
+  /**
+  * validLabServices
+  * 
+  * This is used to validate whether or not a lab can claim a request
+  * DAOGenics will validate lab's service and insert it to this mapping
+  * 
+  * labID: ethAddress => serviceCategory: string => serviceID: hash
+  */
+  mapping(address => mapping(string => bytes32)) public validLabServices;
+
   // total requests count
   uint requestCount;
   // All of the requests
-  Request[] allRequests;
+  bytes32[] allRequests;
 
   // Hash -> Request
   mapping(bytes32 => Request) public requestByHash;
-  // Country -> Request[]
-  mapping(bytes32 => Request[]) public requestsByCountry;
-  // Country,City -> Request[]
-  mapping(bytes32 => Request[]) public requestsByCountryCity;
-  // Substrate Address -> Request[]
-  mapping(bytes32 => Request[]) public requestsBySubstrateAddress;
+  // Country -> RequestHash[]
+  mapping(bytes32 => bytes32[]) public requestsByCountry;
+  // Country,City -> RequestHash[]
+  mapping(bytes32 => bytes32[]) public requestsByCountryCity;
+  // Requester Address -> RequestHash[]
+  mapping(address => bytes32[]) public requestsByRequesterAddress;
+  // Lab Address -> RequestHash[] - Claimed Requests Hashes
+  mapping(address => bytes32[]) public requestsByLabAddress;
 
   event ServiceRequestCreated(Request request);
-
+  event LabServiceValidated(address labAddress, string serviceCategory, bytes32 serviceId);
+  event RequestClaimed(address labAddress, bytes32 requestHash);
+  
   function hashRequest(
-    string memory requesterSubstrateAddress,
-    string memory labSubstrateAddress,
+    address requesterAddress,
     string memory country,
     string memory city,
     string memory serviceCategory,
@@ -50,8 +64,7 @@ contract ServiceRequest {
     uint index
   ) internal pure returns (bytes32 hash){
     return keccak256(abi.encodePacked(
-      requesterSubstrateAddress,
-      labSubstrateAddress,
+      requesterAddress,
       country,
       city,
       serviceCategory,
@@ -61,8 +74,6 @@ contract ServiceRequest {
   }
 
   function createRequest(
-    string memory requesterSubstrateAddress,
-    string memory labSubstrateAddress,
     string memory country,
     string memory city,
     string memory serviceCategory,
@@ -74,35 +85,37 @@ contract ServiceRequest {
     require(_token.transferFrom(msg.sender, address(this), stakingAmount), "Token staking failed");
     
     bytes32 requestHash = hashRequest(
-      requesterSubstrateAddress,
-      labSubstrateAddress,
+      msg.sender,
       country,
       city,
       serviceCategory,
       stakingAmount,
-      requestCount
+      requestCount + 1
     );
 
     Request memory request = Request(
-      requesterSubstrateAddress,
-      labSubstrateAddress,
+      msg.sender,
+      address(0), // Default Lab Address is null
       country,
       city,
       serviceCategory,
       stakingAmount,
       RequestStatus.OPEN,
-      requestHash
+      requestHash,
+      true
     );
 
-    allRequests.push(request);
+    allRequests.push(requestHash);
 
     requestByHash[requestHash] = request;
 
     bytes32 countryKey = keccak256(abi.encodePacked(country));
-    requestsByCountry[countryKey].push(request);
+    requestsByCountry[countryKey].push(requestHash);
 
     bytes32 countryCityKey = keccak256(abi.encodePacked(country, city));
-    requestsByCountryCity[countryCityKey].push(request);
+    requestsByCountryCity[countryCityKey].push(requestHash);
+
+    requestsByRequesterAddress[msg.sender].push(requestHash);
 
     requestCount++;
 
@@ -113,7 +126,7 @@ contract ServiceRequest {
     return requestCount;
   }
 
-  function getAllRequests() external view returns (Request[] memory) {
+  function getAllRequests() external view returns (bytes32[] memory) {
     return allRequests;
   }
 
@@ -121,22 +134,41 @@ contract ServiceRequest {
     return requestByHash[hash];
   }
 
-  function getRequestsByCountry(string memory country) external view returns (Request[] memory) {
+  function getRequestsByCountry(string memory country) external view returns (bytes32[] memory) {
     bytes32 countryKey = keccak256(abi.encodePacked(country));
     return requestsByCountry[countryKey];
   }
 
-  function getRequestsByCountryCity(string memory country, string memory city) external view returns (Request[] memory) {
+  function getRequestsByCountryCity(string memory country, string memory city) external view returns (bytes32[] memory) {
     bytes32 countryCityKey = keccak256(abi.encodePacked(country, city));
     return requestsByCountryCity[countryCityKey];
   }
 
-  function getRequestsByRequesterSubstrateAddress(string memory requesterSubstrateAddress) external view returns (Request[] memory) {
-    bytes32 requesterSubstrateAddressKey = keccak256(abi.encodePacked(requesterSubstrateAddress));
-    return requestsBySubstrateAddress[requesterSubstrateAddressKey];
+  function getRequestsByRequesterAddress() external view returns (bytes32[] memory) {
+    return requestsByRequesterAddress[msg.sender];
   }
 
-  function fulfillRequest(bytes32 hash) external {
-    requestByHash[hash].status = RequestStatus.FULFILLED;
+  function getRequestsByLabAddress() external view returns (bytes32[] memory) {
+    return requestsByLabAddress[msg.sender];
+  }
+
+  function validateLabService(address labId, string memory serviceCategory, bytes32 serviceId) external {
+    validLabServices[labId][serviceCategory] = serviceId;
+    emit LabServiceValidated(labId, serviceCategory, serviceId);
+  }
+
+  function claimRequest(bytes32 requestHash) external {
+    require(requestByHash[requestHash].exists == true, "Request does not exist");
+
+    Request memory request = requestByHash[requestHash];
+
+    // Claimer should have their service validated by DAOGenics
+    require(validLabServices[msg.sender][request.serviceCategory] != bytes32(0), "Lab's service has not been validated by DAOGenics");
+    require(request.status != RequestStatus.CLAIMED, "Request has already been claimed");
+
+    requestByHash[requestHash].status = RequestStatus.CLAIMED;
+    requestByHash[requestHash].labAddress = msg.sender;
+
+    emit RequestClaimed(msg.sender, requestHash);
   }
 }

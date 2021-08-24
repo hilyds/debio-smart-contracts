@@ -5,11 +5,13 @@ require('dotenv').config();
 describe('Escrow', function () {
   let contract;
   // Request Parameters
-  const orderId = "4KTmcB6iDV9HElHq2s1Q";
-  const serviceId = "xLNpoyWsY63Z8SYQeBHf";
-  const customerSubstrateAddress = "700fJuhXgfwi9WjBovRy";
-  const sellerSubstrateAddress = "Lg9Z3Ncbn5VNnxuJEVxX";
-  const dnaSampleTrackingId = "3CQguUxa2pOodID3Ni62";
+
+  const orderId = "0xed19fb816f3d4a3d4f46e0445bd68a666647bc5fd77c60c937b170a398c49e51";
+  const serviceId = "0xe88f0531fea1654b6a24197ec1025fd7217bb8b19d619bd488105504ec244df8";
+  const customerSubstrateAddress = "5EBs6czjmUy31iawezsude3vudFVfi9gMv6kAHjNeBzzGgvH";
+  const sellerSubstrateAddress = "5ESGhRuAhECXu96Pz9L8pwEEd1AeVhStXX67TWE1zHRuvJNU";
+  const dnaSampleTrackingId = "Y9JCOABLP16GKHQ14RY9J";
+
   const testingPrice = 10
   const qcPrice = 3
 

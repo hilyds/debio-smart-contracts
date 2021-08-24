@@ -1,4 +1,6 @@
 # Escrow
+
+## How it Works
 - Customer pays to escrow, inserting order detail data
 - When Lab fulfills order at substrate blockchain, backend receives order fulfilled event
   - On order fulfilled, backend triggers Escrow.fulfillOrder:
@@ -8,25 +10,41 @@
   - On dnaSample rejected backend triggers Escrow.refundOrder:
     - Transfer QC payment to *Lab*
     - Transfer Testing payment to *Customer*
+## TODO:
+- [ ] allOrders should only hold order ids
+- [ ] ordersBySellerSubstrateAddress should only hold order ids
+- [ ] ordersByCustomerSubstrateAddress should only hold order ids
+- [ ] remove orderByHash mapping because orderId is already a hash
 
 # Request Test Staking
-Customer sends a request for a test to a lab.
-If there is no lab in their country,city then the request is also valid. The request will be used as a gauge of interest for the particular type of test in that city.
-Labs/future labs can receive the staking amount by providing the service requested.
-Whether or not the service fulfills the request, will need to be determined by DAOGenics.   
-To make this request, a customer would have to stake a certain amount of DAI
+## Making a request
+Customer sends a request for a test in a location which there is no labs.
+The request also requires the user to stake an amount of DAI as an incentive for labs to fulfill the request.
+
+## Claiming a request
+Labs/Future labs can receive the staking amount reward by claiming the request, and fulfilling the request by providing the service.
+DAOGenics will need to validate the service before lab can claim the request. This is done by calling a transaction in the smart contract, updating a mapping of valid lab services.
 
 ## Data Structure
 ### Service Request
 ```solidity
   struct Request {
-    string requesterSubstrateAddress;
-    string labSubstrateAddress; // optional
-    string country; // optional, mandatory if labSubstrateAddress is empty
-    string city; // optional, mandatory if labSubstrateAddress is empty
-    string service;
+    address requesterAddress;
+    address labAddress; // Added when lab claimed the request
+    string country;
+    string city;
+    string serviceCategory;
     uint stakingAmount;
+    RequestStatus status; // { OPEN, CLAIMED }
+    bytes32 hash;
+    bool exists;
   }
+```
+### Valid Lab Services
+```solidity
+      // labID       serviceCategory  serviceID
+  mapping(bytes32 => mapping(string => bytes32)) public labValidServices;
+
 ```
 
 ## How it works
