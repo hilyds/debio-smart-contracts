@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./IEscrow.sol";
 
 contract ServiceRequest {
   enum RequestStatus { OPEN, CLAIMED }
@@ -20,9 +21,15 @@ contract ServiceRequest {
   }
 
   IERC20 public _token;
+  address public _daoGenics;
+  IEscrow public _escrowContract;
+  address public _escrowAdmin;
 
-  constructor(address ERC20Address) {
+  constructor(address ERC20Address, address daoGenics, address escrowContract, address escrowAdmin) {
     _token = IERC20(ERC20Address);
+    _daoGenics = daoGenics;
+    _escrowContract = IEscrow(escrowContract);
+    _escrowAdmin = escrowAdmin;
   }
 
   /**
@@ -54,7 +61,19 @@ contract ServiceRequest {
   event ServiceRequestCreated(Request request);
   event LabServiceValidated(address labAddress, string serviceCategory, bytes32 serviceId);
   event RequestClaimed(address labAddress, bytes32 requestHash);
-  
+  event RequestProcessed(
+    bytes32 requestHash,
+    bytes32 orderId,
+    bytes32 serviceId,
+    string customerSubstrateAddress,
+    string sellerSubstrateAddress,
+    address customerAddress,
+    address sellerAddress,
+    string dnaSampleTrackingId,
+    uint testingPrice,
+    uint qcPrice
+  );
+
   function hashRequest(
     address requesterAddress,
     string memory country,
@@ -153,6 +172,7 @@ contract ServiceRequest {
   }
 
   function validateLabService(address labId, string memory serviceCategory, bytes32 serviceId) external {
+    require(msg.sender == _daoGenics, "Only DAOGenics allowed");
     validLabServices[labId][serviceCategory] = serviceId;
     emit LabServiceValidated(labId, serviceCategory, serviceId);
   }
@@ -170,5 +190,51 @@ contract ServiceRequest {
     requestByHash[requestHash].labAddress = msg.sender;
 
     emit RequestClaimed(msg.sender, requestHash);
+  }
+
+  function processRequest(
+    bytes32 requestHash,
+    bytes32 orderId,
+    bytes32 serviceId,
+    string memory customerSubstrateAddress,
+    string memory sellerSubstrateAddress,
+    address customerAddress,
+    address sellerAddress,
+    string memory dnaSampleTrackingId,
+    uint testingPrice,
+    uint qcPrice
+  ) external {
+    // Only escrow admin account should be able to call this function
+    require(msg.sender == _escrowAdmin, "Only escrow admin is authorized to process request");
+    require(requestByHash[requestHash].exists == true, "Request does not exist");
+
+    Request memory request = requestByHash[requestHash];
+
+    _token.approve(address(_escrowContract), request.stakingAmount);
+
+    _escrowContract.payOrder(
+      orderId,
+      serviceId,
+      customerSubstrateAddress,
+      sellerSubstrateAddress,
+      customerAddress,
+      sellerAddress,
+      dnaSampleTrackingId,
+      testingPrice,
+      qcPrice
+    );
+
+    emit RequestProcessed(
+      requestHash,
+      orderId,
+      serviceId,
+      customerSubstrateAddress,
+      sellerSubstrateAddress,
+      customerAddress,
+      sellerAddress,
+      dnaSampleTrackingId,
+      testingPrice,
+      qcPrice
+    );
   }
 }

@@ -11,6 +11,19 @@
     - Transfer QC payment to *Lab*
     - Transfer Testing payment to *Customer*
 
+## TODO:
+- [ ] Order can be paid partially or in full
+  - [ ] If Order is paid in full:
+    - [ ] emit OrderPaid Event
+    - [ ] set Order.status = PAID
+  - [ ] If Order is paid partially:
+    - [ ] User can top up payment 
+    - [ ] If paid partially
+    - [ ] emit OrderPaidPartial Event
+    - [ ] set Order.status = PAID_PARTIAL
+- [ ] Order payment can be topped up
+- [ ] If payment is more than total price, transfer back to sender
+
 
 # Request Test Staking
 ## Making a request
@@ -18,8 +31,12 @@ Customer sends a request for a test in a location which there is no labs.
 The request also requires the user to stake an amount of DAI as an incentive for labs to fulfill the request.
 
 ## Claiming a request
-Labs/Future labs can receive the staking amount reward by claiming the request, and fulfilling the request by providing the service.
+Future labs can receive the staking amount reward by claiming the request, and fulfilling the request by providing the service.
 DAOGenics will need to validate the service before lab can claim the request. This is done by calling a transaction in the smart contract, updating a mapping of valid lab services.
+
+A ClaimRequest event will be fired and listened by Backend.
+Backend will create an order in substrate blockchain.
+When order is created, it will trigger transferStakingAmount to escrow smart contract
 
 ## Data Structure
 ### Service Request
@@ -48,30 +65,17 @@ DAOGenics will need to validate the service before lab can claim the request. Th
 - Customer sends ServiceRequest Data
 ```solidity
   function createRequest(
-    string memory requesterSubstrateAddress,
-    string memory labSubstrateAddress,
     string memory country,
     string memory city,
-    string memory service,
+    string memory serviceCategory,
     uint stakingAmount
   ) external { }
-
-  if
-    labSubstrateAddress == ""
-  then 
-    country is required
-    city is required
-
-  if labSubstrateAddress != ""
-  then
-    country is not required
-    city is not required
 ```
-- Lab fulfills a request
-  A lab can fulfill a request and claim the token staked in the request
-  TODO: How to validate that the request is really fulfilled?
+- Lab claims a request
+  A lab can claim a request and the token will be transferred to escrow account,
+  Order will be created in the escrow account by backend that will listen to RequestClaimed event
 
 ## Deployed Contract Address
 Refer to ./deployed-addresses for the last deployed contract addresses.
-Currently deployed in private network for development.
+Currently deployed to rinkeby
 
