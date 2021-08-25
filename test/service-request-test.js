@@ -10,7 +10,7 @@ describe('ServiceRequests', function () {
   const country = "Indonesia";
   const city = "Jakarta";
   const serviceCategory = "Whole-Genome Sequencing";
-  const stakingAmount = "20000000000000000000";
+  const stakingAmount = ethers.utils.parseUnits("10.0");
 
   let requesterAccount;
   let iDontHaveTokens;
@@ -147,7 +147,7 @@ describe('ServiceRequests', function () {
       country,
       city,
       serviceCategory,
-      stakingAmount,
+      stakingAmount.toString(),
       1,
     )
     expect(hashes[0]).to.equal(hashed1)
@@ -160,7 +160,7 @@ describe('ServiceRequests', function () {
       country,
       city,
       serviceCategory,
-      stakingAmount,
+      stakingAmount.toString(),
       1,
     )
     expect(hashes[0]).to.equal(hashed1)
@@ -172,7 +172,7 @@ describe('ServiceRequests', function () {
       country,
       city,
       serviceCategory,
-      stakingAmount
+      stakingAmount.toString()
     );
     // wait until transaction is mined
     const receipt = await requestAddedTx.wait();
@@ -200,7 +200,7 @@ describe('ServiceRequests', function () {
       country,
       city,
       serviceCategory,
-      stakingAmount,
+      stakingAmount.toString(),
       1,
     )
 
@@ -209,7 +209,7 @@ describe('ServiceRequests', function () {
       country,
       city,
       serviceCategory,
-      stakingAmount,
+      stakingAmount.toString(),
       2,
     )
     
@@ -226,7 +226,7 @@ describe('ServiceRequests', function () {
         country,
         city,
         serviceCategory,
-        stakingAmount,
+        stakingAmount.toString(),
         i+1,
       )
       expect(hashes[i]).to.equal(hashed)
@@ -243,7 +243,7 @@ describe('ServiceRequests', function () {
       country,
       city,
       serviceCategory,
-      stakingAmount,
+      stakingAmount.toString(),
       1,
     )
 
@@ -317,7 +317,7 @@ describe('ServiceRequests', function () {
 
   it("Lab claim a request, smart contract emit event RequestClaimed, and update Request status to CLAIMED", async function () {
     /**
-     * enum RequestStatus { OPEN, CLAIMED }
+     * enum RequestStatus { OPEN, CLAIMED, PROCESSED }
      */
     const STATUS_OPEN = 0
     const STATUS_CLAIMED = 1
@@ -369,8 +369,8 @@ describe('ServiceRequests', function () {
       const customerSubstrateAddress = "5EBs6czjmUy31iawezsude3vudFVfi9gMv6kAHjNeBzzGgvH";
       const sellerSubstrateAddress = "5ESGhRuAhECXu96Pz9L8pwEEd1AeVhStXX67TWE1zHRuvJNU";
       const dnaSampleTrackingId = "Y9JCOABLP16GKHQ14RY9J";
-      const testingPrice = 10;
-      const qcPrice = 5;
+      const testingPrice = ethers.utils.parseUnits("10.0");
+      const qcPrice = ethers.utils.parseUnits("5.0");
 
       const contractWithSigner = contract.connect(labAccount)
       const processRequestTx = await contractWithSigner.processRequest(
@@ -403,8 +403,8 @@ describe('ServiceRequests', function () {
     const customerSubstrateAddress = "5EBs6czjmUy31iawezsude3vudFVfi9gMv6kAHjNeBzzGgvH";
     const sellerSubstrateAddress = "5ESGhRuAhECXu96Pz9L8pwEEd1AeVhStXX67TWE1zHRuvJNU";
     const dnaSampleTrackingId = "Y9JCOABLP16GKHQ14RY9J";
-    const testingPrice = 10;
-    const qcPrice = 5;
+    const testingPrice = ethers.utils.parseUnits("10.0");
+    const qcPrice = ethers.utils.parseUnits("5.0");
 
     const contractWithSigner = contract.connect(escrowAccount)
     const processRequestTx = await contractWithSigner.processRequest(
@@ -434,6 +434,11 @@ describe('ServiceRequests', function () {
     expect(dnaSampleTrackingId).to.equal(args[7])
     expect(testingPrice).to.equal(args[8])
     expect(qcPrice).to.equal(args[9])
+    expect(stakingAmount).to.equal(args[10])
+
+    const request = await contract.getRequestByHash(hashClaimed)
+     // enum RequestStatus { OPEN, CLAIMED, PROCESSED }
+    expect(request.status).to.equal(2)
 
     const order = await escrowContract.getOrderByOrderId(orderId)
     expect(order.orderId).to.equal(orderId)
@@ -445,5 +450,75 @@ describe('ServiceRequests', function () {
     expect(order.dnaSampleTrackingId).to.equal(dnaSampleTrackingId)
     expect(order.testingPrice).to.equal(testingPrice)
     expect(order.qcPrice).to.equal(qcPrice)
+    expect(order.amountPaid).to.equal(stakingAmount)
+    // enum RequestStatus { PAID_PARTIAL, PAID, FULFILLED, REFUNDED }
+    expect(order.status).to.equal(0) // expect to be PAID_PARTIAL
+  })
+
+  it("Excess staking amount will be refunded to customer", async function () {
+    // Create Request
+    const requesterBalanceStart = await erc20.balanceOf(requesterAccount.address)
+    const stakingAmount = ethers.utils.parseUnits("20.0")
+    let contractWithSigner = contract.connect(requesterAccount);
+    const requestAddedTx = await contractWithSigner.createRequest(
+      country,
+      city,
+      serviceCategory,
+      stakingAmount
+    );
+    // wait until transaction is mined
+    let receipt = await requestAddedTx.wait();
+    let events = receipt.events.filter((x) => x.event == "ServiceRequestCreated");
+    expect(events.length > 0).to.equal(true);
+    // Get the request data from the event
+    const req = events[0].args[0]
+
+    const requesterBalanceAfterStaking = await erc20.balanceOf(requesterAccount.address);
+    expect(requesterBalanceAfterStaking).to.equal(requesterBalanceStart.sub(stakingAmount))
+    
+    // Lab Claim Request
+    const hashToClaim = req.hash
+    contractWithSigner = contract.connect(labAccount)
+    const claimRequestTx = await contractWithSigner.claimRequest(hashToClaim)
+    receipt = await claimRequestTx.wait()
+
+    events = receipt.events.filter(x => x.event == "RequestClaimed")
+    expect(events.length > 0).to.equal(true)
+    const args = events[0].args
+    expect(labAccount.address).to.equal(args[0])
+    expect(hashToClaim).to.equal(args[1])
+
+    // Escrow Process Request
+    const orderId = "0x88106fe2bda681132223a2e7be8958a0698270439b8c75ef68442347e05e1839";
+    const serviceId = "0xe88f0531fea1654b6a24197ec1025fd7217bb8b19d619bd488105504ec244df8";
+    const customerSubstrateAddress = "5EBs6czjmUy31iawezsude3vudFVfi9gMv6kAHjNeBzzGgvH";
+    const sellerSubstrateAddress = "5ESGhRuAhECXu96Pz9L8pwEEd1AeVhStXX67TWE1zHRuvJNU";
+    const dnaSampleTrackingId = "XOSKAIWRASRT04PKXXOSK";
+    const testingPrice = ethers.utils.parseUnits("10.0");
+    const qcPrice = ethers.utils.parseUnits("5.0");
+
+    contractWithSigner = contract.connect(escrowAccount)
+    const processRequestTx = await contractWithSigner.processRequest(
+      hashToClaim,
+      orderId,
+      serviceId,
+      customerSubstrateAddress,
+      sellerSubstrateAddress,
+      requesterAccount.address, // Customer ETH Address
+      labAccount.address, // Lab ETH Address
+      dnaSampleTrackingId,
+      testingPrice,
+      qcPrice,
+    )
+    receipt = await processRequestTx.wait()
+    events = receipt.events.filter((x) => x.event == "RequestProcessed");
+    expect(events.length > 0).to.equal(true);
+
+    // After request is processed, requester should receive excess staking amount
+    const requesterBalanceAfterRequestProcessed = await erc20.balanceOf(requesterAccount.address)
+    const refundAmount = stakingAmount.sub(testingPrice).sub(qcPrice)
+    expect(requesterBalanceAfterRequestProcessed)
+      .to
+      .equal(requesterBalanceAfterStaking.add(refundAmount))
   })
 })

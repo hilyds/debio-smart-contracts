@@ -5,12 +5,7 @@ import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Escrow {
-  enum OrderStatus { PAID, FULFILLED, REFUNDED }
-
-  struct Price{
-    string component;
-    uint value;
-  }
+  enum OrderStatus { PAID_PARTIAL, PAID, FULFILLED, REFUNDED }
 
   struct Order {
     bytes32 orderId;
@@ -20,9 +15,11 @@ contract Escrow {
     string dnaSampleTrackingId;
     uint testingPrice;
     uint qcPrice;
+    uint amountPaid;
     address customerAddress;
     address sellerAddress;
     OrderStatus status;
+    bool exists;
   }
 
   IERC20 public _token;
@@ -45,10 +42,9 @@ contract Escrow {
   // Seller Substrate Address -> Order[]
   mapping(bytes32 => bytes32[]) public ordersBySellerSubstrateAddress;
 
+  event OrderPaidPartial(Order order);
   event OrderPaid(Order order);
-
   event OrderRefunded(Order order);
-
   event OrderFulfilled(Order order);
 
   function refundOrder(bytes32 orderId) external {
@@ -92,15 +88,26 @@ contract Escrow {
     address sellerAddress,
     string memory dnaSampleTrackingId,
     uint testingPrice,
-    uint qcPrice
+    uint qcPrice,
+    uint payAmount
   ) external {
 
     require(testingPrice != 0, "Testing Price cannot be 0");
     require(qcPrice != 0, "QC Price cannot be 0");
 
     // Transfer erc20 token from sender to this contract
+    require(_token.transferFrom(msg.sender, address(this), payAmount), "Transfer to escrow failed");
+
     uint totalPrice = testingPrice + qcPrice;
-    require(_token.transferFrom(msg.sender, address(this), totalPrice), "Transfer to escrow failed");
+
+    OrderStatus orderStatus;
+    if (payAmount < totalPrice) {
+      orderStatus = OrderStatus.PAID_PARTIAL;
+    }
+    if (payAmount == totalPrice) {
+      orderStatus = OrderStatus.PAID;
+    }
+    // TODO: Handle payment in excess
     
     Order memory order = Order(
       orderId,
@@ -110,9 +117,11 @@ contract Escrow {
       dnaSampleTrackingId,
       testingPrice,
       qcPrice,
+      payAmount,
       customerAddress,
       sellerAddress,
-      OrderStatus.PAID
+      orderStatus,
+      true
     );
 
     allOrders.push(orderId);
@@ -126,6 +135,50 @@ contract Escrow {
     ordersBySellerSubstrateAddress[sellerSubstrateAddressKey].push(orderId);
 
     orderCount++;
+
+    if (order.status == OrderStatus.PAID_PARTIAL) {
+      emit OrderPaidPartial(order);
+      return;
+    }
+
+    emit OrderPaid(order);
+  }
+
+  function topUpOrderPayment(bytes32 orderId, uint payAmount) external {
+    require(orderByOrderId[orderId].exists == true, "Order not found");
+
+    require(_token.transferFrom(msg.sender, address(this), payAmount), "Transfer to escrow failed");
+
+    Order memory order = orderByOrderId[orderId];
+
+    uint totalPrice = order.testingPrice + order.qcPrice;
+    uint totalPaid = order.amountPaid + payAmount;
+
+    // Refund excess payment
+    if (totalPaid > totalPrice) {
+      uint excess = totalPaid - totalPrice; 
+      if (excess > 0) {
+        _token.transfer(msg.sender, excess);
+      }
+      totalPaid = totalPaid - excess;
+    }
+    order.amountPaid = totalPaid;
+
+    OrderStatus orderStatus;
+    if (totalPaid < totalPrice) {
+      orderStatus = OrderStatus.PAID_PARTIAL;
+    }
+    if (totalPaid == totalPrice) {
+      orderStatus = OrderStatus.PAID;
+    }
+    order.status = orderStatus;
+
+    orderByOrderId[orderId] = order;
+
+    if (order.status == OrderStatus.PAID_PARTIAL) {
+      emit OrderPaidPartial(order);
+      return;
+    }
 
     emit OrderPaid(order);
   }

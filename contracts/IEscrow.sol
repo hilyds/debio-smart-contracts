@@ -11,6 +11,7 @@ interface IEscrow {
     address sellerAddress,
     string memory dnaSampleTrackingId,
     uint testingPrice,
-    uint qcPrice
+    uint qcPrice,
+    uint payAmount
   ) external;
 }

@@ -1,4 +1,18 @@
+# TODO:
+- [ ] Update README
+
 # Escrow
+## TODO:
+- [x] Order can be paid partially or in full
+  - [x] If Order is paid in full:
+    - [x] emit OrderPaid Event
+    - [x] set Order.status = PAID
+  - [x] If Order is paid partially:
+    - [x] emit OrderPaidPartial Event
+    - [x] set Order.status = PAID_PARTIAL
+- [x] Order payment can be topped up
+- [x] If payment is more than total price, transfer back to sender
+- [ ] Add mechanism to update escrowAdmin address
 
 ## How it Works
 - Customer pays to escrow, inserting order detail data
@@ -11,21 +25,10 @@
     - Transfer QC payment to *Lab*
     - Transfer Testing payment to *Customer*
 
-## TODO:
-- [ ] Order can be paid partially or in full
-  - [ ] If Order is paid in full:
-    - [ ] emit OrderPaid Event
-    - [ ] set Order.status = PAID
-  - [ ] If Order is paid partially:
-    - [ ] User can top up payment 
-    - [ ] If paid partially
-    - [ ] emit OrderPaidPartial Event
-    - [ ] set Order.status = PAID_PARTIAL
-- [ ] Order payment can be topped up
-- [ ] If payment is more than total price, transfer back to sender
-
-
 # Request Test Staking
+## TODO:
+- [ ] Add mechanism to update escrowAdmin address
+
 ## Making a request
 Customer sends a request for a test in a location which there is no labs.
 The request also requires the user to stake an amount of DAI as an incentive for labs to fulfill the request.

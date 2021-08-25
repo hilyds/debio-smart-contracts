@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./IEscrow.sol";
 
 contract ServiceRequest {
-  enum RequestStatus { OPEN, CLAIMED }
+  enum RequestStatus { OPEN, CLAIMED, PROCESSED }
 
   struct Request {
     address requesterAddress;
@@ -71,7 +71,8 @@ contract ServiceRequest {
     address sellerAddress,
     string dnaSampleTrackingId,
     uint testingPrice,
-    uint qcPrice
+    uint qcPrice,
+    uint payAmount
   );
 
   function hashRequest(
@@ -210,7 +211,18 @@ contract ServiceRequest {
 
     Request memory request = requestByHash[requestHash];
 
-    _token.approve(address(_escrowContract), request.stakingAmount);
+    uint payAmount = request.stakingAmount;
+
+    // Refund excess payment
+    uint totalPrice = testingPrice + qcPrice;
+    if (payAmount > totalPrice) {
+      uint excess = payAmount - totalPrice; 
+      if (excess > 0) {
+        _token.transfer(customerAddress, excess);
+      }
+      payAmount = payAmount - excess;
+    }
+    _token.approve(address(_escrowContract), payAmount);
 
     _escrowContract.payOrder(
       orderId,
@@ -221,8 +233,13 @@ contract ServiceRequest {
       sellerAddress,
       dnaSampleTrackingId,
       testingPrice,
-      qcPrice
+      qcPrice,
+      payAmount
     );
+
+    request.status = RequestStatus.PROCESSED;
+
+    requestByHash[requestHash] = request;
 
     emit RequestProcessed(
       requestHash,
@@ -234,7 +251,8 @@ contract ServiceRequest {
       sellerAddress,
       dnaSampleTrackingId,
       testingPrice,
-      qcPrice
+      qcPrice,
+      payAmount
     );
   }
 }

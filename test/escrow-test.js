@@ -13,14 +13,27 @@ describe('Escrow', function () {
   const sellerSubstrateAddress = "5ESGhRuAhECXu96Pz9L8pwEEd1AeVhStXX67TWE1zHRuvJNU";
   const dnaSampleTrackingId = "Y9JCOABLP16GKHQ14RY9J";
 
-  const testingPrice = 10
-  const qcPrice = 3
+  const testingPrice = ethers.utils.parseUnits("10.0")
+  const qcPrice = ethers.utils.parseUnits("3.0")
+
+
+  const orderId_2 = "0x9c2a0f506d1c626a785cd752875b677c0b1678ca96febd2196e4d3213acc6c1c";
+  const serviceId_2 = "0xb4216ea7fc982badfcf0c4b254272c5fbfe8b551b25b5f0272590d976e62a7f4";
+  const dnaSampleTrackingId_2 = "N7UJDA1EP9JKAS2DOIN7U";
+  
 
   let customerAccount;
   let sellerAccount;
   let escrowAccount;
   let iDontHaveTokens;
 
+  /**
+   * Order Status Enums
+   * */
+  const PAID_PARTIAL = 0
+  const PAID = 1
+  const FULFILLED = 2
+  const REFUNDED = 3
 
   before(async function () {
     /**
@@ -85,16 +98,18 @@ describe('Escrow', function () {
     const approveTx = await erc20WithSigner.approve(contract.address, "90000000000000000000");
     await approveTx.wait();
 
+    const payAmount = testingPrice.add(qcPrice)
     const orderPaidTx = await contractWithSigner.payOrder(
-        orderId,
-        serviceId,
-        customerSubstrateAddress,
-        sellerSubstrateAddress,
-        customerAccount.address,
-        sellerAccount.address,
-        dnaSampleTrackingId,
-        testingPrice,
-        qcPrice
+      orderId,
+      serviceId,
+      customerSubstrateAddress,
+      sellerSubstrateAddress,
+      customerAccount.address,
+      sellerAccount.address,
+      dnaSampleTrackingId,
+      testingPrice,
+      qcPrice,
+      payAmount
     )
     // wait until transaction is mined
     await orderPaidTx.wait();
@@ -103,6 +118,7 @@ describe('Escrow', function () {
   it("Should fail if sender does not have enough ERC20 token balance", async function () {
     let errMsg;
     try {
+      const payAmount = testingPrice.add(qcPrice)
       const contractWithSigner = contract.connect(iDontHaveTokens)
       const tx = await contractWithSigner.payOrder(
         orderId,
@@ -113,7 +129,8 @@ describe('Escrow', function () {
         sellerAccount.address,
         dnaSampleTrackingId,
         testingPrice,
-        qcPrice
+        qcPrice,
+        payAmount
       )
     } catch (err) {
       errMsg = err.message
@@ -151,17 +168,19 @@ describe('Escrow', function () {
     // TODO: Add validation for orderId to prevent duplicate orderIds
     const orderId = "0xd698d9107cd8d68b8fb7d2a81159b95bcb5ed0a337f661ede21f335d60fef63e";
 
+    const payAmount = testingPrice.add(qcPrice)
     const contractWithSigner = contract.connect(customerAccount);
     const orderAddedTx = await contractWithSigner.payOrder(
-        orderId,
-        serviceId,
-        customerSubstrateAddress,
-        sellerSubstrateAddress,
-        customerAccount.address,
-        sellerAccount.address,
-        dnaSampleTrackingId,
-        testingPrice,
-        qcPrice
+      orderId,
+      serviceId,
+      customerSubstrateAddress,
+      sellerSubstrateAddress,
+      customerAccount.address,
+      sellerAccount.address,
+      dnaSampleTrackingId,
+      testingPrice,
+      qcPrice,
+      payAmount,
     )
     // wait until transaction is mined
     const receipt = await orderAddedTx.wait();
@@ -195,13 +214,13 @@ describe('Escrow', function () {
 
   it("Only Escrow account can fulfill a order (Updates order status to fulfilled)", async function () {
     /**
-     * enum RequestStatus { PAID, FULFILLED, REFUNDED }
-     */
+     * enum RequestStatus { PAID_PARTIAL, PAID, FULFILLED, REFUNDED }
+     * */
     const orderIds = await contract.getAllOrders();
     const orderId = orderIds[0];
 
     let order = await contract.getOrderByOrderId(orderId)
-    expect(order.status).to.equal(0);
+    expect(order.status).to.equal(PAID);
 
 
     // Should not be able to fulfillOrder with sellerAccount
@@ -223,24 +242,26 @@ describe('Escrow', function () {
     await fulfillTx.wait();
 
     order = await contract.getOrderByOrderId(order.orderId);
-    expect(order.status).to.equal(1);
+    expect(order.status).to.equal(FULFILLED);
 
     // Test if qc price and test price is transferred to lab
     const sellerBalanceAfter = await erc20.balanceOf(sellerAccount.address)
     expect(sellerBalanceAfter.toString())
       .to
-      .equal(sellerBalanceBefore.add(testingPrice + qcPrice).toString())
+      .equal(sellerBalanceBefore.add(
+        testingPrice.add(qcPrice)
+      ).toString())
   })
 
   it("Only Escrow account can refund a order (Updates order status to refunded)", async function () {
     /**
-     * enum RequestStatus { PAID, FULFILLED, REFUNDED }
-     */
+     * enum RequestStatus { PAID_PARTIAL, PAID, FULFILLED, REFUNDED }
+     * */
     const orderIds = await contract.getAllOrders();
     const orderId = orderIds[1];
 
     let order = await contract.getOrderByOrderId(orderId)
-    expect(order.status).to.equal(0);
+    expect(order.status).to.equal(PAID);
 
     // Should not be able to refund using sellerAccount
     let errMsg;
@@ -262,7 +283,7 @@ describe('Escrow', function () {
     await fulfillTx.wait();
 
     order = await contract.getOrderByOrderId(order.orderId);
-    expect(order.status).to.equal(2);
+    expect(order.status).to.equal(REFUNDED);
 
     // Test if testing price is refunded to customer
     const customerBalanceAfter = await erc20.balanceOf(customerAccount.address)
@@ -270,5 +291,74 @@ describe('Escrow', function () {
     // Test if qc price is transferred to lab
     const sellerBalanceAfter = await erc20.balanceOf(sellerAccount.address)
     expect(sellerBalanceAfter.toString()).to.equal(sellerBalanceBefore.add(qcPrice).toString())
+  })
+
+  it("Order can be paid partially", async function () {
+    /**
+     * enum RequestStatus { PAID_PARTIAL, PAID, FULFILLED, REFUNDED }
+     * */
+    const payAmount = ethers.utils.parseUnits("5.0")
+
+    const contractWithSigner = contract.connect(customerAccount)
+    const orderPaidTx = await contractWithSigner.payOrder(
+      orderId_2,
+      serviceId_2,
+      customerSubstrateAddress,
+      sellerSubstrateAddress,
+      customerAccount.address,
+      sellerAccount.address,
+      dnaSampleTrackingId_2,
+      testingPrice,
+      qcPrice,
+      payAmount
+    )
+    const receipt = await orderPaidTx.wait()
+    const events = receipt.events.filter((x) => x.event == "OrderPaidPartial");
+    expect(events.length > 0).to.equal(true);
+    // Get the request data from the event
+    const order = events[0].args[0]
+    expect(order.status).to.equal(PAID_PARTIAL)
+    expect(order.amountPaid.toString()).to.equal(payAmount.toString())
+  })
+
+  it("Partially paid order can be topped up", async function () {
+    const order = await contract.getOrderByOrderId(orderId_2)
+    let amountPaidBefore = order.amountPaid
+
+    // Total Price should be 13
+    // Pay partially by 5
+    let payAmount = ethers.utils.parseUnits("5.0")
+    const contractWithSigner = contract.connect(customerAccount)
+    let tx = await contractWithSigner.topUpOrderPayment(
+      orderId_2,
+      payAmount
+    )
+    let receipt = await tx.wait()
+    let events = receipt.events.filter((x) => x.event == "OrderPaidPartial");
+    expect(events.length > 0).to.equal(true);
+    // Get the request data from the event
+    let arg = events[0].args[0]
+    expect(arg.status).to.equal(PAID_PARTIAL)
+    expect(arg.amountPaid.toString()).to.equal(amountPaidBefore.add(payAmount).toString())
+
+    // Pay partially by 3
+    // Order should be fully paid
+    amountPaidBefore = arg.amountPaid
+    payAmount = ethers.utils.parseUnits("3.0")
+    tx = await contractWithSigner.topUpOrderPayment(
+      orderId_2,
+      payAmount
+    )
+    receipt = await tx.wait()
+    events = receipt.events.filter((x) => x.event == "OrderPaid");
+    expect(events.length > 0).to.equal(true);
+    // Get the request data from the event
+    arg = events[0].args[0]
+    expect(arg.status).to.equal(PAID)
+    expect(arg.amountPaid.toString()).to.equal(amountPaidBefore.add(payAmount).toString())
+  })
+
+  it("Excess payment is refunded back to sender", async function () {
+    // TODO:
   })
 })

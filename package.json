@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "deploy:debio": "npx hardhat run --network debio scripts/deploy-service-request-contract.js",
-    "deploy:rinkeby": "npx hardhat run --network rinkeby scripts/deploy-service-request-contract.js",
+    "deploy:rinkeby": "npx hardhat run --network rinkeby scripts/deploy-contracts.js",
     "deploy:ropsten": "npx hardhat run --network ropsten scripts/deploy-erc20-contract.js"
   },
   "author": "",
