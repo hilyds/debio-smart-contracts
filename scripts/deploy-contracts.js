@@ -28,12 +28,12 @@ async function main() {
   console.log('Deployed ServiceRequest Contract address', serviceRequestContract.address);
 
   // Save the address of deployed contract at the particular network
-  let filename = `escrow-${networkName}-network`;
+  let filename = `${networkName}-escrow`;
   let fh = await open(path.join('deployed-addresses', filename), 'w');
   await fh.writeFile(String(escrowContract.address))
   await fh.close();
 
-  filename = `service-request-${networkName}-network`;
+  filename = `${networkName}-service-request`;
   fh = await open(path.join('deployed-addresses', filename), 'w');
   await fh.writeFile(String(serviceRequestContract.address))
   await fh.close();
