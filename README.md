@@ -82,3 +82,18 @@ When order is created, it will trigger transferStakingAmount to escrow smart con
 Refer to ./deployed-addresses for the last deployed contract addresses.
 Currently deployed to rinkeby
 
+# Scripts
+## Pay Order to Escrow (local network)
+- Run localhost network
+```
+$ npx hardhat node
+```
+- Deploy contracts
+```
+$ npm run deploy:local
+```
+- Run script
+```
+$ npx hardhat run --network localhost scripts/escrow-pay-order.js
+```
+
